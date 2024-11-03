@@ -1,3 +1,3 @@
 # learnCUDA
 
-alearn  yrgfdfkhhhhhhhhhhhhh;l
+一个学习cuda的库
