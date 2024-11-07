@@ -52,7 +52,7 @@ int main(int argc, char **argv)
     int dev = 0;
     cudaDeviceProp deviceProp;
     CHECK(cudaGetDeviceProperties(&deviceProp, dev));
-    printf("Using Device %d: %s\n", dev, deviceProp.name); // 设备信息
+    std::cout << "Using Device " << dev << " : " << deviceProp.name << std::endl; // 设备信息
     CHECK(cudaSetDevice(dev));
 
     // 初始化矩阵
@@ -83,7 +83,7 @@ int main(int argc, char **argv)
     // std::cout << "Matrix A:" << std::endl;
     // viewMat(A, M, K);
     // std::cout << "Matrix B:" << std::endl;
-    // viewMat(B, N, K);
+    // viewMat(B, K, M);
     // std::cout << "Matrix C:" << std::endl;
     // viewMat(C, M, N);
 
