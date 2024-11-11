@@ -6,7 +6,7 @@
 // 0:1:3 表示从0到3，step为1，即{0,1,2,3}
 // 0:1:3#2 表示2个0:1:3，即{0,1,2,3,0,1,2,3}
 // 0#2:1:3#2 表示2个从0到3，step为1，即{0,0,1,1,2,2,3,3}
-__global__ void gemmNaiveOnGPU(
+__global__ void gemmThreadTilingOnGPU(
     const int M,
     const int N,
     const int K,
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
     int dimy = 32;
     dim3 block(dimy * dimx / (8 * 4));
     dim3 grid((N + dimx - 1) / dimx, (M + dimy - 1) / dimy);
-    gemmNaiveOnGPU<<<grid, block>>>(M, N, K, MatA, alpha, MatB, beta, MatC);
+    gemmThreadTilingOnGPU<<<grid, block>>>(M, N, K, MatA, alpha, MatB, beta, MatC);
 
     CHECK(cudaDeviceSynchronize());
     // setp6: 在主机中获取计算结果

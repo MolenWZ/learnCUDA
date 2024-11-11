@@ -1,48 +1,16 @@
+#include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <iostream>
+#include <cstdint>
 #include "general.h"
-
-__global__ void gemmSharedMemOnGPU(
-    const int M,
-    const int N,
-    const int K,
-    const float *A,
-    float alpha,
-    const float *B,
-    float beta,
-    float *C)
-{
-    const int BM = 32;
-    const int BK = 32;
-    const int BN = 32;
-    // 共享内存声明
-    __shared__ float shareA[BM][BK];
-    __shared__ float shareB[BK][BN];
-
-    // 全局内存指针偏移
-    A += blockIdx.x * BM * K;
-    B += blockIdx.y * BN;
-    C += blockIdx.x * BM * N + blockIdx.y * BN;
-
-    // 循环加载数据到共享内存并同步
-    float tmp = 0.0;
-    for (int i = 0; i < K / BK; ++i) // 外层循环，循环次数为 k/BK
-    {
-        // 将会从global内存读取数据到share内存
-        shareA[threadIdx.y][threadIdx.x] = A[threadIdx.y * K + threadIdx.x];
-        shareB[threadIdx.y][threadIdx.x] = B[threadIdx.y * N + threadIdx.x];
-        // 更新指针
-        A += BK;
-        B += BK * N;
-        __syncthreads();             // 进行线程同步
-        for (int j = 0; j < BK; ++j) // 内层循环，循环次数为 BK。在每次循环中进行乘法运算，然后累加到 tmp 上。
-        {
-            tmp += shareA[threadIdx.y][j] * shareB[j][threadIdx.x];
-        }
-        __syncthreads();
-    }
-    C[threadIdx.y * N + threadIdx.x] = alpha * tmp + beta * C[threadIdx.y * N + threadIdx.x];
-}
+// nvcc 000cublas.cu -lcublas
+// https://docs.nvidia.com/cuda/cublas/index.html#using-the-cublas-api
+/*
+cuBLAS 库公开了三组 API：
+cuBLAS API，在本文档中简称为 cuBLAS API（从 CUDA 6.0 开始），
+cuBLASXt API（从 CUDA 6.0 开始），以及
+cuBLASLt API（从 CUDA 10.1 开始）
+*/
 
 int main(int argc, char **argv)
 {
@@ -78,12 +46,12 @@ int main(int argc, char **argv)
     initialData(A, A_size);
     initialData(B, B_size);
     memset(C, 0, C_bytes);
-    // initialData(C, C_size);  // 或则随机初始化C
+    // initialData(C, M * N);
 
     // std::cout << "Matrix A:" << std::endl;
     // viewMat(A, M, K);
     // std::cout << "Matrix B:" << std::endl;
-    // viewMat(B, K, M);
+    // viewMat(B, N, K);
     // std::cout << "Matrix C:" << std::endl;
     // viewMat(C, M, N);
 
@@ -98,14 +66,14 @@ int main(int argc, char **argv)
     CHECK(cudaMemcpy(MatC, C, C_bytes, cudaMemcpyHostToDevice));
 
     // 核函数
-    int dimx = 32;
-    int dimy = 32;
-    dim3 block(dimx, dimy); // 每个block，32个线程
-    dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y);
-    gemmSharedMemOnGPU<<<grid, block>>>(M, N, K, MatA, alpha, MatB, beta, MatC);
-
-    CHECK(cudaDeviceSynchronize());
-    // 在主机中获取计算结果
+    cublasHandle_t handle;
+    cublasCreate(&handle);
+    // if(cublasCreate(&handle)){
+    //     std::cerr << "Create cublas handle error." << std::endl;
+    //     exit(EXIT_FAILURE);
+    // };
+    cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, MatB, N, MatA, K, &beta, MatC, N);
+    
     CHECK(cudaMemcpy(C, MatC, C_bytes, cudaMemcpyDeviceToHost));
 
     // 打印结果矩阵 C
@@ -116,14 +84,12 @@ int main(int argc, char **argv)
     CHECK(cudaFree(MatA));
     CHECK(cudaFree(MatB));
     CHECK(cudaFree(MatC));
-
     // 释放host内存
     free(A);
     free(B);
     free(C);
-
     // 重置设备
+    cublasDestroy(handle);
     CHECK(cudaDeviceReset());
-
     return 0;
 }
